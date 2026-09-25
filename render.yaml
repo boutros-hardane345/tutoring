@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: tutor-management
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: MONGODB_URI
+        sync: false

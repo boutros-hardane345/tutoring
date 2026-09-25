@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TutorTrack — Private Tutoring Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <i class="fa-solid fa-graduation-cap"></i>
+      <div>
+        <h1>TutorTrack</h1>
+        <p>Private tutoring management</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <label class="month-wrap">Month
+        <input type="month" id="monthPicker" />
+      </label>
+      <span id="dbStatus" class="db-badge" title="API / DB status">…</span>
+      <button class="btn ghost" id="backupBtn"><i class="fa-solid fa-download"></i> Backup</button>
+      <button class="btn ghost" id="restoreBtn"><i class="fa-solid fa-upload"></i> Restore</button>
+      <input type="file" id="restoreFile" accept="application/json" hidden />
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="stats" id="statsRow">
+      <div class="stat"><span class="stat-label"><i class="fa-solid fa-users"></i> Active students</span><strong id="statStudents">–</strong></div>
+      <div class="stat"><span class="stat-label"><i class="fa-solid fa-clock"></i> Hours this month</span><strong id="statHours">–</strong></div>
+      <div class="stat"><span class="stat-label"><i class="fa-solid fa-file-invoice-dollar"></i> Billed</span><strong id="statBilled">–</strong></div>
+      <div class="stat"><span class="stat-label"><i class="fa-solid fa-wallet"></i> Collected / Pending</span><strong id="statCollected">–</strong></div>
+    </section>
+
+    <section class="toolbar">
+      <div class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="searchInput" placeholder="Search by student name…" />
+      </div>
+      <select id="gradeFilter"><option value="">All grades</option></select>
+      <button class="btn primary" id="addStudentBtn"><i class="fa-solid fa-plus"></i> Add Student</button>
+    </section>
+
+    <div id="loadingBar" class="loading" hidden>Loading…</div>
+    <div id="errorBar" class="error-bar" hidden></div>
+
+    <section id="studentGrid" class="grid"></section>
+    <div id="emptyState" class="empty" hidden>
+      <i class="fa-solid fa-user-plus"></i>
+      <h3>No students yet</h3>
+      <p>Add your first student to start logging sessions.</p>
+      <button class="btn primary" id="emptyAddBtn"><i class="fa-solid fa-plus"></i> Add Student</button>
+    </div>
+    <div id="noResultState" class="empty" hidden>
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <h3>No matches</h3>
+      <p>Try a different name or grade filter.</p>
+    </div>
+  </main>
+
+  <!-- Student modal -->
+  <div class="overlay" id="studentModal" hidden>
+    <div class="modal">
+      <h2 id="studentModalTitle">Add Student</h2>
+      <form id="studentForm">
+        <input type="hidden" id="studentId" />
+        <label>Full Name *<input id="fName" required maxlength="120" /></label>
+        <label>Grade / Level *<input id="fGrade" required maxlength="60" placeholder="EB7, EB8, Grade 10" /></label>
+        <label>Subjects Taught *<input id="fSubjects" required maxlength="200" placeholder="Mathematics, Physics" /></label>
+        <label>Cost per Hour (USD) *<input id="fRate" type="number" min="0.01" step="0.01" required /></label>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Session modal -->
+  <div class="overlay" id="sessionModal" hidden>
+    <div class="modal">
+      <h2 id="sessionModalTitle">Log Session</h2>
+      <form id="sessionForm">
+        <input type="hidden" id="sId" />
+        <input type="hidden" id="sStudentId" />
+        <label>Date &amp; Time *<input id="sDatetime" type="datetime-local" required /></label>
+        <label>Duration (hours) *<input id="sDuration" type="number" min="0.01" max="24" step="0.25" required placeholder="1.5" /></label>
+        <label>Subject<input id="sSubject" maxlength="120" placeholder="Mathematics" /></label>
+        <label>What was given (material taught) *<textarea id="sTaught" required maxlength="2000"></textarea></label>
+        <label>What to prepare (homework)<textarea id="sHomework" maxlength="2000"></textarea></label>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Payment modal -->
+  <div class="overlay" id="paymentModal" hidden>
+    <div class="modal">
+      <h2>Record Payment</h2>
+      <form id="paymentForm">
+        <input type="hidden" id="pStudentId" />
+        <p class="muted" id="pStudentName"></p>
+        <label>Date *<input id="pDate" type="date" required /></label>
+        <label>Amount (USD) *<input id="pAmount" type="number" min="0.01" step="0.01" required /></label>
+        <label>Note<input id="pNote" maxlength="500" placeholder="Cash / transfer…" /></label>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- History modal -->
+  <div class="overlay" id="historyModal" hidden>
+    <div class="modal wide">
+      <h2 id="historyTitle">Session History</h2>
+      <div id="historyList" class="history"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" data-close>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statement modal -->
+  <div class="overlay" id="statementModal" hidden>
+    <div class="modal wide">
+      <h2 id="statementTitle">Monthly Statement</h2>
+      <div id="statementBody"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" data-close>Close</button>
+        <button type="button" class="btn primary" id="copyStatementBtn"><i class="fa-solid fa-copy"></i> Copy for WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm modal -->
+  <div class="overlay" id="confirmModal" hidden>
+    <div class="modal small">
+      <h2 id="confirmTitle">Are you sure?</h2>
+      <p class="muted" id="confirmText"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="button" class="btn danger" id="confirmYes">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+  <script src="app.js"></script>
+</body>
+</html>
