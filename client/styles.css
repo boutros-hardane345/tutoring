@@ -158,27 +158,46 @@ body {
   background: linear-gradient(135deg, #ecfdf5, #d1fae5); border: 1px solid #a7f3d0;
   border-radius: 10px; padding: 11px 13px; font-size: 14px; color: #065f46;
 }
-/* Planner */
-.planner-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
-.day-col {
-  background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-  padding: 10px; min-height: 220px; box-shadow: var(--shadow);
+/* Planner — one weekly timetable table */
+.week-scroll { overflow-x: auto; border-radius: 14px; box-shadow: var(--shadow); }
+.week-table {
+  width: 100%; min-width: 860px; border-collapse: separate; border-spacing: 0;
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+  font-size: 13px;
 }
-.day-col h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--navy2); display: flex; gap: 6px; align-items: center; }
-.day-col h4 .today { background: var(--indigo); color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 999px; text-transform: none; }
-.day-slots { display: flex; flex-direction: column; gap: 8px; }
-.slot-card {
+.week-table thead th {
+  background: linear-gradient(135deg, var(--navy), var(--navy2)); color: #fff;
+  padding: 10px 8px; text-align: center; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px;
+  position: sticky; top: 0; white-space: nowrap;
+}
+.week-table thead th.tt-time { width: 70px; }
+.week-table thead th.is-today { background: linear-gradient(135deg, var(--indigo), #7c3aed); }
+.tt-day span { margin-right: 6px; }
+.tt-add { padding: 3px 8px; font-size: 11px; background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); color: #fff; }
+.tt-add:hover { background: rgba(255,255,255,0.3); }
+.week-table tbody td { border-top: 1px solid var(--border); border-left: 1px solid var(--border); padding: 5px; vertical-align: top; }
+.week-table tbody td:first-child { border-left: 0; }
+.tt-time {
+  width: 70px; text-align: center; font-weight: 800; color: var(--navy2);
+  background: #f8fafc; white-space: nowrap; vertical-align: top !important; font-size: 12px;
+}
+.tt-cell { min-width: 110px; min-height: 40px; background: #fff; }
+.tt-cell:nth-child(even) { background: #fafbff; }
+.tt-block {
   border: 1px solid var(--border); border-left: 5px solid var(--indigo);
-  border-radius: 10px; padding: 9px 10px; font-size: 12.5px; background: #f8fafc;
-  display: flex; flex-direction: column; gap: 5px; animation: rise 0.2s ease;
-  transition: transform 0.12s ease;
+  border-radius: 9px; padding: 6px 7px; margin-bottom: 5px; background: #f8fafc;
+  display: flex; flex-direction: column; gap: 3px; animation: rise 0.2s ease;
 }
-.slot-card:hover { transform: translateY(-2px); background: #fff; box-shadow: var(--shadow); }
-.slot-card strong { font-size: 13px; }
-.slot-time { color: var(--muted); font-weight: 600; }
-.slot-actions { display: flex; gap: 4px; }
-.slot-empty { color: #cbd5e1; text-align: center; font-size: 18px; padding: 6px; }
-.day-add { width: 100%; justify-content: center; border-style: dashed; }
+.tt-block:hover { background: #fff; box-shadow: var(--shadow); }
+.tt-block strong { font-size: 12.5px; }
+.tt-hours { color: var(--muted); font-weight: 700; font-size: 11.5px; }
+.tt-actions { display: flex; gap: 4px; }
+.icon-btn {
+  border: 1px solid var(--border); background: #fff; border-radius: 7px;
+  padding: 3px 7px; font-size: 11px; cursor: pointer; color: var(--slate); font-family: inherit;
+}
+.icon-btn:hover { border-color: var(--indigo); color: var(--indigo); }
+.icon-btn.danger:hover { border-color: var(--red); color: var(--red); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .overlay {
   position: fixed; inset: 0; background: rgba(30, 27, 75, 0.55);
@@ -223,13 +242,9 @@ body {
 }
 .toast.success { background: var(--emerald); }
 .toast.error { background: var(--red); }
-@media (max-width: 1024px) {
-  .planner-grid { grid-template-columns: repeat(4, 1fr); }
-}
 @media (max-width: 768px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
   .balance { grid-template-columns: repeat(2, 1fr); }
   .topbar { position: static; }
-  .planner-grid { grid-template-columns: repeat(2, 1fr); }
   .tabs { order: 3; width: 100%; }
 }

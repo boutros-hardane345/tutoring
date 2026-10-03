@@ -375,64 +375,112 @@ async function loadPlanner(keepFilter) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+function toMin(t) {
+  const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(t || '').trim());
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+function toHHMM(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 function renderPlanner() {
   if (!els.plannerGrid) return;
   const filter = els.plannerStudentFilter ? els.plannerStudentFilter.value : '';
-  const slots = filter ? state.schedules.filter((s) => String(s.studentId && s.studentId._id || s.studentId) === String(filter)) : state.schedules;
+  const sidOf = (s) => String((s.studentId && s.studentId._id) || s.studentId);
+  const slots = (filter ? state.schedules.filter((s) => sidOf(s) === String(filter)) : state.schedules)
+    .filter((s) => toMin(s.start) != null && toMin(s.end) != null)
+    .sort((a, b) => String(a.start).localeCompare(String(b.start)));
   els.plannerGrid.innerHTML = '';
   if (els.plannerEmpty) els.plannerEmpty.hidden = slots.length > 0;
-  DAY_ORDER.forEach((d) => {
-    const col = document.createElement('div');
-    col.className = 'day-col';
-    const today = new Date().getDay() === d ? ' <span class="today">today</span>' : '';
-    col.innerHTML = `<h4>${DAY_NAMES[d]}${today}</h4><div class="day-slots"></div>`;
-    const wrap = col.querySelector('.day-slots');
-    const daySlots = slots.filter((s) => Number(s.dayOfWeek) === d).sort((a, b) => String(a.start).localeCompare(String(b.start)));
-    if (!daySlots.length) {
-      const em = document.createElement('div');
-      em.className = 'slot-empty';
-      em.textContent = '—';
-      wrap.appendChild(em);
-    }
-    daySlots.forEach((s) => {
-      const sid = s.studentId && s.studentId._id ? s.studentId._id : s.studentId;
-      const st = studentById(sid);
-      const name = (s.studentId && s.studentId.name) || (st && st.name) || 'Student';
-      const color = colorFor(sid);
-      const div = document.createElement('div');
-      div.className = 'slot-card';
-      div.style.borderLeftColor = color;
-      div.innerHTML = `
-        <strong>${esc(name)}</strong>
-        <span class="slot-time"><i class="fa-solid fa-clock"></i> ${esc(s.start)} – ${esc(s.end)}</span>
-        <span class="slot-actions">
-          <button class="btn small ghost" data-a="edit"><i class="fa-solid fa-pen"></i></button>
-          <button class="btn small ghost" data-a="log"><i class="fa-solid fa-plus"></i> Log</button>
-          <button class="btn small ghost" data-a="del"><i class="fa-solid fa-trash"></i></button>
-        </span>`;
-      div.querySelector('[data-a="edit"]').addEventListener('click', () => openSlotModal(s));
-      div.querySelector('[data-a="del"]').addEventListener('click', () => {
-        askConfirm('Delete slot?', `${name} · ${DAY_NAMES[d]} ${s.start}–${s.end}?`, async () => {
-          try { await api('/api/schedules/' + s._id, { method: 'DELETE' }); toast('Slot deleted.', 'success'); loadPlanner(true); }
-          catch (err) { toast(err.message, 'error'); }
-        });
-      });
-      div.querySelector('[data-a="log"]').addEventListener('click', () => {
-        const target = studentById(sid);
-        if (target) openSessionModal(target, null);
-        else toast('Student not found.', 'error');
-      });
-      wrap.appendChild(div);
-    });
-    // click empty area to add slot for that day
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn small ghost day-add';
-    addBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
-    addBtn.title = 'Add slot on ' + DAY_NAMES[d];
-    addBtn.addEventListener('click', () => openSlotModal(null, d, filter || undefined));
-    wrap.appendChild(addBtn);
-    els.plannerGrid.appendChild(col);
+  const todayDow = new Date().getDay();
+
+  // Time range: snap to 30min, default 08:00–22:00, auto-extend for out-of-range slots
+  let minT = 8 * 60, maxT = 22 * 60;
+  slots.forEach((s) => {
+    const a = toMin(s.start), b = toMin(s.end);
+    if (a != null) minT = Math.min(minT, Math.floor(a / 30) * 30);
+    if (b != null) maxT = Math.max(maxT, Math.ceil(b / 30) * 30);
   });
+  if (maxT <= minT) maxT = minT + 60;
+
+  const table = document.createElement('table');
+  table.className = 'week-table';
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  hr.innerHTML = '<th class="tt-time">Time</th>';
+  DAY_ORDER.forEach((d) => {
+    const th = document.createElement('th');
+    th.className = todayDow === d ? 'tt-day is-today' : 'tt-day';
+    th.innerHTML = `<span>${DAY_NAMES[d]}${todayDow === d ? ' • today' : ''}</span> `;
+    const plus = document.createElement('button');
+    plus.className = 'btn small ghost tt-add';
+    plus.innerHTML = '<i class="fa-solid fa-plus"></i>';
+    plus.title = 'Add slot on ' + DAY_NAMES[d];
+    plus.addEventListener('click', () => openSlotModal(null, d, filter || undefined));
+    th.appendChild(plus);
+    hr.appendChild(th);
+  });
+  thead.appendChild(hr);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  if (!slots.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="tt-time">—</td>` + DAY_ORDER.map(() => '<td class="tt-cell"><span class="muted">—</span></td>').join('');
+    tbody.appendChild(tr);
+  }
+  for (let r = minT; r < maxT; r += 30) {
+    const tr = document.createElement('tr');
+    const timeTd = document.createElement('td');
+    timeTd.className = 'tt-time';
+    timeTd.textContent = toHHMM(r);
+    tr.appendChild(timeTd);
+    DAY_ORDER.forEach((d) => {
+      const td = document.createElement('td');
+      td.className = 'tt-cell';
+      const starting = slots
+        .filter((s) => Number(s.dayOfWeek) === d)
+        .filter((s) => { const a = toMin(s.start); return a >= r && a < r + 30; });
+      starting.forEach((s) => {
+        const sid = sidOf(s);
+        const st = studentById(sid);
+        const name = (s.studentId && s.studentId.name) || (st && st.name) || 'Student';
+        const color = colorFor(sid);
+        const durMin = toMin(s.end) - toMin(s.start);
+        const block = document.createElement('div');
+        block.className = 'tt-block';
+        block.style.borderLeftColor = color;
+        block.style.minHeight = Math.max(44, Math.round((durMin / 30) * 40)) + 'px';
+        block.innerHTML = `
+          <strong>${esc(name)}</strong>
+          <span class="tt-hours">${esc(s.start)} – ${esc(s.end)}</span>
+          <span class="tt-actions">
+            <button class="icon-btn" data-a="edit" title="Edit"><i class="fa-solid fa-pen"></i></button>
+            <button class="icon-btn" data-a="log" title="Log session"><i class="fa-solid fa-plus"></i></button>
+            <button class="icon-btn danger" data-a="del" title="Delete"><i class="fa-solid fa-trash"></i></button>
+          </span>`;
+        block.querySelector('[data-a="edit"]').addEventListener('click', () => openSlotModal(s));
+        block.querySelector('[data-a="del"]').addEventListener('click', () => {
+          askConfirm('Delete slot?', `${name} · ${DAY_NAMES[d]} ${s.start}–${s.end}?`, async () => {
+            try { await api('/api/schedules/' + s._id, { method: 'DELETE' }); toast('Slot deleted.', 'success'); loadPlanner(true); }
+            catch (err) { toast(err.message, 'error'); }
+          });
+        });
+        block.querySelector('[data-a="log"]').addEventListener('click', () => {
+          const target = studentById(sid);
+          if (target) openSessionModal(target, null);
+          else toast('Student not found.', 'error');
+        });
+        td.appendChild(block);
+      });
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  els.plannerGrid.appendChild(table);
 }
 
 function openSlotModal(slot, presetDay, presetStudent) {
