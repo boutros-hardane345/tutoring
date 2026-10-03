@@ -158,8 +158,41 @@ body {
   background: linear-gradient(135deg, #ecfdf5, #d1fae5); border: 1px solid #a7f3d0;
   border-radius: 10px; padding: 11px 13px; font-size: 14px; color: #065f46;
 }
-/* Planner — one weekly timetable table */
+/* Planner — weekly timetable: fixed 30-min rows, blocks span start→end */
 .week-scroll { overflow-x: auto; border-radius: 14px; box-shadow: var(--shadow); }
+.tt-grid {
+  min-width: 860px; background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden; font-size: 13px;
+}
+.tt-head-row, .tt-body-row { display: grid; grid-template-columns: 70px repeat(7, 1fr); }
+.tt-gutter-head {
+  background: linear-gradient(135deg, var(--navy), var(--navy2)); color: #fff;
+  padding: 10px 8px; text-align: center; font-size: 12px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+.tt-day-head {
+  background: linear-gradient(135deg, var(--navy), var(--navy2)); color: #fff;
+  padding: 8px; text-align: center; font-size: 12px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;
+}
+.tt-day-head.is-today { background: linear-gradient(135deg, var(--indigo), #7c3aed); }
+.tt-gutter { background: #f8fafc; border-top: 1px solid var(--border); }
+.tt-gutter-lab {
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 6px;
+  font-weight: 800; color: var(--navy2); font-size: 12px;
+  border-bottom: 1px solid var(--border); box-sizing: border-box;
+}
+.tt-daycol {
+  position: relative; background: #fff;
+  border-top: 1px solid var(--border); border-left: 1px solid var(--border);
+}
+.tt-daycol:nth-child(even) { background: #fafbff; }
+.tt-daycol.is-today { background: #eef2ff; }
+.tt-gridline { border-bottom: 1px solid var(--border); box-sizing: border-box; }
+.tt-day-empty { position: absolute; inset: 8px 0 0 0; text-align: center; }
+.tt-block-abs { position: absolute; left: 2px; right: 2px; overflow: hidden; margin: 2px 0; }
+.tt-block-abs.is-shared .tt-actions { flex-wrap: wrap; }
 .week-table {
   width: 100%; min-width: 860px; border-collapse: separate; border-spacing: 0;
   background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;

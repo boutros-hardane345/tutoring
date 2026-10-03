@@ -391,7 +391,8 @@ function renderPlanner() {
   const sidOf = (s) => String((s.studentId && s.studentId._id) || s.studentId);
   const slots = (filter ? state.schedules.filter((s) => sidOf(s) === String(filter)) : state.schedules)
     .filter((s) => toMin(s.start) != null && toMin(s.end) != null)
-    .sort((a, b) => String(a.start).localeCompare(String(b.start)));
+    .filter((s) => toMin(s.end) > toMin(s.start))
+    .sort((a, b) => toMin(a.start) - toMin(b.start) || toMin(a.end) - toMin(b.end));
   els.plannerGrid.innerHTML = '';
   if (els.plannerEmpty) els.plannerEmpty.hidden = slots.length > 0;
   const todayDow = new Date().getDay();
@@ -405,82 +406,149 @@ function renderPlanner() {
   });
   if (maxT <= minT) maxT = minT + 60;
 
-  const table = document.createElement('table');
-  table.className = 'week-table';
-  const thead = document.createElement('thead');
-  const hr = document.createElement('tr');
-  hr.innerHTML = '<th class="tt-time">Time</th>';
+  const ROW_PX = 44; // px per 30-min row — single source of truth for top/height math
+  const grid = document.createElement('div');
+  grid.className = 'tt-grid';
+
+  // Header: Time gutter + one head cell per day (preserves + button + today highlight)
+  const headRow = document.createElement('div');
+  headRow.className = 'tt-head-row';
+  const gutterHead = document.createElement('div');
+  gutterHead.className = 'tt-gutter-head';
+  gutterHead.textContent = 'Time';
+  headRow.appendChild(gutterHead);
   DAY_ORDER.forEach((d) => {
-    const th = document.createElement('th');
-    th.className = todayDow === d ? 'tt-day is-today' : 'tt-day';
-    th.innerHTML = `<span>${DAY_NAMES[d]}${todayDow === d ? ' • today' : ''}</span> `;
+    const dh = document.createElement('div');
+    dh.className = todayDow === d ? 'tt-day-head is-today' : 'tt-day-head';
+    const label = document.createElement('span');
+    label.textContent = DAY_NAMES[d] + (todayDow === d ? ' • today' : '');
+    dh.appendChild(label);
     const plus = document.createElement('button');
     plus.className = 'btn small ghost tt-add';
     plus.innerHTML = '<i class="fa-solid fa-plus"></i>';
     plus.title = 'Add slot on ' + DAY_NAMES[d];
     plus.addEventListener('click', () => openSlotModal(null, d, filter || undefined));
-    th.appendChild(plus);
-    hr.appendChild(th);
+    dh.appendChild(plus);
+    headRow.appendChild(dh);
   });
-  thead.appendChild(hr);
-  table.appendChild(thead);
+  grid.appendChild(headRow);
 
-  const tbody = document.createElement('tbody');
-  if (!slots.length) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td class="tt-time">—</td>` + DAY_ORDER.map(() => '<td class="tt-cell"><span class="muted">—</span></td>').join('');
-    tbody.appendChild(tr);
-  }
+  const bodyRow = document.createElement('div');
+  bodyRow.className = 'tt-body-row';
+
+  // Time gutter with one label per 30-min row
+  const gutter = document.createElement('div');
+  gutter.className = 'tt-gutter';
   for (let r = minT; r < maxT; r += 30) {
-    const tr = document.createElement('tr');
-    const timeTd = document.createElement('td');
-    timeTd.className = 'tt-time';
-    timeTd.textContent = toHHMM(r);
-    tr.appendChild(timeTd);
-    DAY_ORDER.forEach((d) => {
-      const td = document.createElement('td');
-      td.className = 'tt-cell';
-      const starting = slots
-        .filter((s) => Number(s.dayOfWeek) === d)
-        .filter((s) => { const a = toMin(s.start); return a >= r && a < r + 30; });
-      starting.forEach((s) => {
-        const sid = sidOf(s);
-        const st = studentById(sid);
-        const name = (s.studentId && s.studentId.name) || (st && st.name) || 'Student';
-        const color = colorFor(sid);
-        const durMin = toMin(s.end) - toMin(s.start);
-        const block = document.createElement('div');
-        block.className = 'tt-block';
-        block.style.borderLeftColor = color;
-        block.style.minHeight = Math.max(44, Math.round((durMin / 30) * 40)) + 'px';
-        block.innerHTML = `
-          <strong>${esc(name)}</strong>
-          <span class="tt-hours">${esc(s.start)} – ${esc(s.end)}</span>
-          <span class="tt-actions">
-            <button class="icon-btn" data-a="edit" title="Edit"><i class="fa-solid fa-pen"></i></button>
-            <button class="icon-btn" data-a="log" title="Log session"><i class="fa-solid fa-plus"></i></button>
-            <button class="icon-btn danger" data-a="del" title="Delete"><i class="fa-solid fa-trash"></i></button>
-          </span>`;
-        block.querySelector('[data-a="edit"]').addEventListener('click', () => openSlotModal(s));
-        block.querySelector('[data-a="del"]').addEventListener('click', () => {
-          askConfirm('Delete slot?', `${name} · ${DAY_NAMES[d]} ${s.start}–${s.end}?`, async () => {
-            try { await api('/api/schedules/' + s._id, { method: 'DELETE' }); toast('Slot deleted.', 'success'); loadPlanner(true); }
-            catch (err) { toast(err.message, 'error'); }
-          });
-        });
-        block.querySelector('[data-a="log"]').addEventListener('click', () => {
-          const target = studentById(sid);
-          if (target) openSessionModal(target, null);
-          else toast('Student not found.', 'error');
-        });
-        td.appendChild(block);
-      });
-      tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
+    const lab = document.createElement('div');
+    lab.className = 'tt-gutter-lab';
+    lab.style.height = ROW_PX + 'px';
+    lab.textContent = toHHMM(r);
+    gutter.appendChild(lab);
   }
-  table.appendChild(tbody);
-  els.plannerGrid.appendChild(table);
+  bodyRow.appendChild(gutter);
+
+  // Assign side-by-side lanes to concurrent slots (concurrency is allowed).
+  // Groups slots of one day into overlap clusters; each cluster gets lanes via greedy assignment.
+  function layoutLanes(daySlots) {
+    const items = daySlots.map((s) => ({ s, a: toMin(s.start), b: toMin(s.end) }))
+      .sort((x, y) => x.a - y.a || x.b - y.b);
+    const out = new Map();
+    let cluster = [];
+    let clusterEnd = -1;
+    const flush = () => {
+      if (!cluster.length) return;
+      const laneEnd = [];
+      cluster.forEach((it) => {
+        let lane = laneEnd.findIndex((e) => e <= it.a);
+        if (lane === -1) { lane = laneEnd.length; laneEnd.push(it.b); }
+        else laneEnd[lane] = it.b;
+        it.lane = lane;
+      });
+      const n = laneEnd.length || 1;
+      cluster.forEach((it) => {
+        out.set(String(it.s._id), { lane: it.lane, lanes: n });
+      });
+      cluster = [];
+      clusterEnd = -1;
+    };
+    items.forEach((it) => {
+      if (cluster.length && it.a >= clusterEnd) flush();
+      cluster.push(it);
+      clusterEnd = Math.max(clusterEnd, it.b);
+    });
+    flush();
+    return out;
+  }
+
+  function makeBlock(s, d, laneInfo) {
+    const sid = sidOf(s);
+    const st = studentById(sid);
+    const name = (s.studentId && s.studentId.name) || (st && st.name) || 'Student';
+    const color = colorFor(sid);
+    const a = toMin(s.start), b = toMin(s.end);
+    const top = ((a - minT) / 30) * ROW_PX;
+    const height = Math.max(26, ((b - a) / 30) * ROW_PX - 4);
+    const block = document.createElement('div');
+    block.className = 'tt-block tt-block-abs';
+    block.style.borderLeftColor = color;
+    block.style.top = top + 'px';
+    block.style.height = height + 'px';
+    if (laneInfo && laneInfo.lanes > 1) {
+      const w = 100 / laneInfo.lanes;
+      block.style.left = `calc(${laneInfo.lane * w}% + 2px)`;
+      block.style.width = `calc(${w}% - 4px)`;
+      block.classList.add('is-shared');
+    }
+    block.innerHTML = `
+      <strong>${esc(name)}</strong>
+      <span class="tt-hours">${esc(s.start)} – ${esc(s.end)}</span>
+      <span class="tt-actions">
+        <button class="icon-btn" data-a="edit" title="Edit"><i class="fa-solid fa-pen"></i></button>
+        <button class="icon-btn" data-a="log" title="Log session"><i class="fa-solid fa-plus"></i></button>
+        <button class="icon-btn danger" data-a="del" title="Delete"><i class="fa-solid fa-trash"></i></button>
+      </span>`;
+    block.querySelector('[data-a="edit"]').addEventListener('click', () => openSlotModal(s));
+    block.querySelector('[data-a="del"]').addEventListener('click', () => {
+      askConfirm('Delete slot?', `${name} · ${DAY_NAMES[d]} ${s.start}–${s.end}?`, async () => {
+        try { await api('/api/schedules/' + s._id, { method: 'DELETE' }); toast('Slot deleted.', 'success'); loadPlanner(true); }
+        catch (err) { toast(err.message, 'error'); }
+      });
+    });
+    block.querySelector('[data-a="log"]').addEventListener('click', () => {
+      const target = studentById(sid);
+      if (target) openSessionModal(target, null);
+      else toast('Student not found.', 'error');
+    });
+    return block;
+  }
+
+  const totalH = ((maxT - minT) / 30) * ROW_PX;
+  DAY_ORDER.forEach((d) => {
+    const col = document.createElement('div');
+    col.className = 'tt-daycol' + (todayDow === d ? ' is-today' : '');
+    col.style.height = totalH + 'px';
+    // background gridlines, one per 30-min row
+    for (let r = minT; r < maxT; r += 30) {
+      const line = document.createElement('div');
+      line.className = 'tt-gridline';
+      line.style.height = ROW_PX + 'px';
+      col.appendChild(line);
+    }
+    const daySlots = slots.filter((s) => Number(s.dayOfWeek) === d);
+    if (!daySlots.length) {
+      const empty = document.createElement('span');
+      empty.className = 'muted tt-day-empty';
+      empty.textContent = slots.length ? '—' : '—';
+      col.appendChild(empty);
+    } else {
+      const lanes = layoutLanes(daySlots);
+      daySlots.forEach((s) => col.appendChild(makeBlock(s, d, lanes.get(String(s._id)) || { lane: 0, lanes: 1 })));
+    }
+    bodyRow.appendChild(col);
+  });
+  grid.appendChild(bodyRow);
+  els.plannerGrid.appendChild(grid);
 }
 
 function openSlotModal(slot, presetDay, presetStudent) {
