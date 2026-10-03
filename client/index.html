@@ -13,14 +13,19 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <i class="fa-solid fa-graduation-cap"></i>
+      <div class="logo-bubble"><i class="fa-solid fa-graduation-cap"></i></div>
       <div>
         <h1>TutorTrack</h1>
         <p>Private tutoring management</p>
       </div>
     </div>
+    <nav class="tabs">
+      <button class="tab active" data-view="students"><i class="fa-solid fa-users"></i> Students</button>
+      <button class="tab" data-view="planner"><i class="fa-solid fa-calendar-week"></i> Planner</button>
+      <button class="tab" data-view="pending"><i class="fa-solid fa-wallet"></i> Pending <span id="pendingCount" class="pill" hidden>0</span></button>
+    </nav>
     <div class="top-actions">
-      <label class="month-wrap">Month
+      <label class="month-wrap"><i class="fa-solid fa-calendar-days"></i> Month
         <input type="month" id="monthPicker" />
       </label>
       <span id="dbStatus" class="db-badge" title="API / DB status">…</span>
@@ -32,35 +37,69 @@
 
   <main class="container">
     <section class="stats" id="statsRow">
-      <div class="stat"><span class="stat-label"><i class="fa-solid fa-users"></i> Active students</span><strong id="statStudents">–</strong></div>
-      <div class="stat"><span class="stat-label"><i class="fa-solid fa-clock"></i> Hours this month</span><strong id="statHours">–</strong></div>
-      <div class="stat"><span class="stat-label"><i class="fa-solid fa-file-invoice-dollar"></i> Billed</span><strong id="statBilled">–</strong></div>
-      <div class="stat"><span class="stat-label"><i class="fa-solid fa-wallet"></i> Collected / Pending</span><strong id="statCollected">–</strong></div>
+      <div class="stat accent-blue"><span class="stat-label"><i class="fa-solid fa-users"></i> Active students</span><strong id="statStudents">–</strong></div>
+      <div class="stat accent-green"><span class="stat-label"><i class="fa-solid fa-clock"></i> Hours this month</span><strong id="statHours">–</strong><small class="reset-note">resets monthly · no carry-over</small></div>
+      <div class="stat accent-amber"><span class="stat-label"><i class="fa-solid fa-file-invoice-dollar"></i> Billed this month</span><strong id="statBilled">–</strong></div>
+      <div class="stat accent-rose"><span class="stat-label"><i class="fa-solid fa-wallet"></i> Collected / Pending</span><strong id="statCollected">–</strong></div>
     </section>
 
-    <section class="toolbar">
-      <div class="search">
-        <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="text" id="searchInput" placeholder="Search by student name…" />
+    <!-- STUDENTS VIEW -->
+    <div id="studentsView">
+      <section class="toolbar">
+        <div class="search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="searchInput" placeholder="Search by student name…" />
+        </div>
+        <select id="gradeFilter"><option value="">All grades</option></select>
+        <button class="btn primary" id="addStudentBtn"><i class="fa-solid fa-plus"></i> Add Student</button>
+      </section>
+
+      <div id="loadingBar" class="loading" hidden>Loading…</div>
+      <div id="errorBar" class="error-bar" hidden></div>
+
+      <section id="studentGrid" class="grid"></section>
+      <div id="emptyState" class="empty" hidden>
+        <i class="fa-solid fa-user-plus"></i>
+        <h3>No students yet</h3>
+        <p>Add your first student to start logging sessions.</p>
+        <button class="btn primary" id="emptyAddBtn"><i class="fa-solid fa-plus"></i> Add Student</button>
       </div>
-      <select id="gradeFilter"><option value="">All grades</option></select>
-      <button class="btn primary" id="addStudentBtn"><i class="fa-solid fa-plus"></i> Add Student</button>
-    </section>
-
-    <div id="loadingBar" class="loading" hidden>Loading…</div>
-    <div id="errorBar" class="error-bar" hidden></div>
-
-    <section id="studentGrid" class="grid"></section>
-    <div id="emptyState" class="empty" hidden>
-      <i class="fa-solid fa-user-plus"></i>
-      <h3>No students yet</h3>
-      <p>Add your first student to start logging sessions.</p>
-      <button class="btn primary" id="emptyAddBtn"><i class="fa-solid fa-plus"></i> Add Student</button>
+      <div id="noResultState" class="empty" hidden>
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <h3>No matches</h3>
+        <p>Try a different name or grade filter.</p>
+      </div>
     </div>
-    <div id="noResultState" class="empty" hidden>
-      <i class="fa-solid fa-magnifying-glass"></i>
-      <h3>No matches</h3>
-      <p>Try a different name or grade filter.</p>
+
+    <!-- PLANNER VIEW -->
+    <div id="plannerView" hidden>
+      <section class="toolbar">
+        <div class="search" style="max-width:320px">
+          <i class="fa-solid fa-user"></i>
+          <select id="plannerStudentFilter" style="border:0;outline:0;flex:1;font-size:14px;background:transparent">
+            <option value="">All students</option>
+          </select>
+        </div>
+        <span class="muted" id="plannerHint">Recurring weekly schedule — Mon → Sun</span>
+        <button class="btn primary" id="addSlotBtn"><i class="fa-solid fa-plus"></i> Add time slot</button>
+      </section>
+      <div id="plannerGrid" class="planner-grid"></div>
+      <div id="plannerEmpty" class="empty" hidden>
+        <i class="fa-solid fa-calendar-plus"></i>
+        <h3>No time slots yet</h3>
+        <p>Set each student's fixed weekly hours, e.g. Monday 16:00–17:30.</p>
+      </div>
+    </div>
+
+    <!-- PENDING VIEW -->
+    <div id="pendingView" hidden>
+      <section class="toolbar">
+        <label class="check"><input type="checkbox" id="onlyDueCheck" checked /> Show only students with due &gt; 0</label>
+        <span class="muted">Strictly this month: <strong id="pendingMonthLabel">—</strong> · no accumulation from other months</span>
+      </section>
+      <div id="pendingCards" class="grid"></div>
+      <h3 class="section-title"><i class="fa-solid fa-money-bill-wave"></i> Payments this month <span class="muted" id="paymentsMonthLabel"></span></h3>
+      <div id="paymentsList" class="history"></div>
     </div>
   </main>
 
@@ -82,21 +121,54 @@
     </div>
   </div>
 
-  <!-- Session modal -->
+  <!-- Session modal — SIMPLIFIED: Day + Hours only -->
   <div class="overlay" id="sessionModal" hidden>
     <div class="modal">
       <h2 id="sessionModalTitle">Log Session</h2>
+      <p class="muted" id="sessionStudentLine"></p>
       <form id="sessionForm">
         <input type="hidden" id="sId" />
         <input type="hidden" id="sStudentId" />
-        <label>Date &amp; Time *<input id="sDatetime" type="datetime-local" required /></label>
-        <label>Duration (hours) *<input id="sDuration" type="number" min="0.01" max="24" step="0.25" required placeholder="1.5" /></label>
-        <label>Subject<input id="sSubject" maxlength="120" placeholder="Mathematics" /></label>
-        <label>What was given (material taught) *<textarea id="sTaught" required maxlength="2000"></textarea></label>
-        <label>What to prepare (homework)<textarea id="sHomework" maxlength="2000"></textarea></label>
+        <label>Day *<input id="sDatetime" type="date" required /></label>
+        <label>Number of hours *<input id="sDuration" type="number" min="0.25" max="24" step="0.25" required placeholder="e.g. 1.5" /></label>
+        <div class="chips" id="hourChips">
+          <button type="button" class="chip" data-h="1">1h</button>
+          <button type="button" class="chip" data-h="1.5">1.5h</button>
+          <button type="button" class="chip" data-h="2">2h</button>
+          <button type="button" class="chip" data-h="3">3h</button>
+        </div>
+        <div class="cost-preview" id="sessionCostPreview">—</div>
         <div class="modal-actions">
           <button type="button" class="btn ghost" data-close>Cancel</button>
-          <button type="submit" class="btn primary">Save</button>
+          <button type="submit" class="btn primary"><i class="fa-solid fa-check"></i> Save session</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Schedule slot modal -->
+  <div class="overlay" id="slotModal" hidden>
+    <div class="modal">
+      <h2 id="slotModalTitle">Add time slot</h2>
+      <form id="slotForm">
+        <input type="hidden" id="slotId" />
+        <label>Student *<select id="slotStudent" required></select></label>
+        <label>Day *<select id="slotDay" required>
+          <option value="1">Monday</option>
+          <option value="2">Tuesday</option>
+          <option value="3">Wednesday</option>
+          <option value="4">Thursday</option>
+          <option value="5">Friday</option>
+          <option value="6">Saturday</option>
+          <option value="0">Sunday</option>
+        </select></label>
+        <div class="row2">
+          <label>Start *<input id="slotStart" type="time" required /></label>
+          <label>End *<input id="slotEnd" type="time" required /></label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary">Save slot</button>
         </div>
       </form>
     </div>
@@ -124,6 +196,7 @@
   <div class="overlay" id="historyModal" hidden>
     <div class="modal wide">
       <h2 id="historyTitle">Session History</h2>
+      <p class="muted" id="historySub"></p>
       <div id="historyList" class="history"></div>
       <div class="modal-actions">
         <button type="button" class="btn ghost" data-close>Close</button>

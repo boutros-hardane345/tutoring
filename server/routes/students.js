@@ -2,6 +2,7 @@ const express = require('express');
 const Student = require('../models/Student');
 const Session = require('../models/Session');
 const Payment = require('../models/Payment');
+const Schedule = require('../models/Schedule');
 
 const router = express.Router();
 
@@ -71,6 +72,7 @@ router.delete('/:id', async (req, res, next) => {
     if (!s) return res.status(404).json({ error: 'Student not found.' });
     await Session.deleteMany({ studentId: s._id });
     await Payment.deleteMany({ studentId: s._id });
+    await Schedule.deleteMany({ studentId: s._id });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

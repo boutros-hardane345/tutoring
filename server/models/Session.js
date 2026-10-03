@@ -6,7 +6,7 @@ const sessionSchema = new mongoose.Schema(
     datetimeISO: { type: Date, required: true },
     duration: { type: Number, required: true, min: 0.01, max: 24 },
     subject: { type: String, trim: true, maxlength: 120, default: '' },
-    taught: { type: String, required: true, trim: true, maxlength: 2000 },
+    taught: { type: String, trim: true, maxlength: 2000, default: '' },
     homework: { type: String, trim: true, maxlength: 2000, default: '' },
     homeworkDone: { type: Boolean, default: false },
     costSnapshot: { type: Number, required: true, min: 0 }

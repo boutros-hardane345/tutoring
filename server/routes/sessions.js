@@ -43,16 +43,15 @@ router.post('/', async (req, res, next) => {
     const student = await Student.findById(studentId);
     if (!student) return res.status(404).json({ error: 'Student not found.' });
     const dt = new Date(datetimeISO);
-    if (isNaN(dt.getTime())) return bad(res, 'Valid date & time is required.');
+    if (isNaN(dt.getTime())) return bad(res, 'Valid day is required.');
     const dur = Number(duration);
-    if (!Number.isFinite(dur) || dur <= 0 || dur > 24) return bad(res, 'Duration must be between 0.01 and 24 hours.');
-    if (!taught || !String(taught).trim()) return bad(res, 'What was taught is required.');
+    if (!Number.isFinite(dur) || dur <= 0 || dur > 24) return bad(res, 'Hours must be between 0.01 and 24.');
     const s = await Session.create({
       studentId,
       datetimeISO: dt,
       duration: dur,
       subject: String(subject || '').trim(),
-      taught: String(taught).trim(),
+      taught: String(taught || '').trim(),
       homework: String(homework || '').trim(),
       homeworkDone: false,
       costSnapshot: Math.round(dur * student.ratePerHour * 100) / 100
@@ -67,16 +66,15 @@ router.put('/:id', async (req, res, next) => {
     if (!existing) return res.status(404).json({ error: 'Session not found.' });
     const { datetimeISO, duration, subject, taught, homework } = req.body || {};
     const dt = new Date(datetimeISO);
-    if (isNaN(dt.getTime())) return bad(res, 'Valid date & time is required.');
+    if (isNaN(dt.getTime())) return bad(res, 'Valid day is required.');
     const dur = Number(duration);
-    if (!Number.isFinite(dur) || dur <= 0 || dur > 24) return bad(res, 'Duration must be between 0.01 and 24 hours.');
-    if (!taught || !String(taught).trim()) return bad(res, 'What was taught is required.');
+    if (!Number.isFinite(dur) || dur <= 0 || dur > 24) return bad(res, 'Hours must be between 0.01 and 24.');
     const student = await Student.findById(existing.studentId);
     existing.datetimeISO = dt;
     existing.duration = dur;
-    existing.subject = String(subject || '').trim();
-    existing.taught = String(taught).trim();
-    existing.homework = String(homework || '').trim();
+    existing.subject = String(subject || existing.subject || '').trim();
+    existing.taught = String(taught != null ? taught : existing.taught || '').trim();
+    existing.homework = String(homework != null ? homework : existing.homework || '').trim();
     if (student) existing.costSnapshot = Math.round(dur * student.ratePerHour * 100) / 100;
     await existing.save();
     res.json(existing);

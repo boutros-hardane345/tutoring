@@ -12,6 +12,7 @@ const sessions = require('./routes/sessions');
 const payments = require('./routes/payments');
 const stats = require('./routes/stats');
 const backup = require('./routes/backup');
+const schedules = require('./routes/schedules');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,6 +50,7 @@ app.use('/api/payments', requireDb, payments);
 app.use('/api/stats', requireDb, stats);
 app.use('/api/statements', requireDb, stats);
 app.use('/api/backup', requireDb, backup);
+app.use('/api/schedules', requireDb, schedules);
 
 // Serve frontend
 const clientDir = path.join(__dirname, '..', 'client');
